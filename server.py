@@ -5,14 +5,11 @@ import schedule
 import time
 from flask import Flask, jsonify
 
-# Initialize Flask app
 app = Flask(__name__)
-
-# Database setup
 DB_NAME = "fuel_prices.db"
 
 def create_database():
-    """Creates database if not exists"""
+    """Creates the database if it doesn't exist"""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS prices (
@@ -31,16 +28,14 @@ def fetch_fuel_prices():
     response = requests.get(url, headers=headers)
     
     if response.status_code != 200:
-        print("Failed to fetch data.")
-        return
-    
+        return {"error": "Failed to fetch data"}
+
     soup = BeautifulSoup(response.text, "html.parser")
-    stations = soup.find_all("div", class_="station-listing")  # Update this if the site structure changes
+    stations = soup.find_all("div", class_="station-listing")  # Update if site structure changes
 
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-
-    c.execute("DELETE FROM prices")  # Clear old data before inserting new ones
+    c.execute("DELETE FROM prices")  # Clear old data
 
     for station in stations:
         name = station.find("h3").text.strip()
@@ -52,10 +47,7 @@ def fetch_fuel_prices():
     
     conn.commit()
     conn.close()
-    print("Fuel prices updated.")
-
-# Schedule daily updates
-schedule.every().day.at("06:00").do(fetch_fuel_prices)
+    return {"message": "Fuel prices updated"}
 
 @app.route("/prices", methods=["GET"])
 def get_prices():
@@ -67,7 +59,12 @@ def get_prices():
     conn.close()
     return jsonify(data)
 
+@app.route("/scrape", methods=["GET"])
+def manual_scrape():
+    """Manually trigger the fuel price scraper"""
+    result = fetch_fuel_prices()
+    return jsonify(result)
+
 if __name__ == "__main__":
     create_database()
-    fetch_fuel_prices()  # Run once on startup
     app.run(host="0.0.0.0", port=5000)
